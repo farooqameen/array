@@ -1,0 +1,6 @@
+# Ignore meta folders and files
+.venv
+.vscode
+.gitignore
+.python-version
+README.md

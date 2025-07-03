@@ -1,0 +1,31 @@
+FROM python:3.12
+
+# Setup an app user so the container doesn't run as the root user 
+RUN useradd --create-home appuser
+USER appuser
+
+# Create dir for the app and set as working directory
+WORKDIR /home/appuser/app
+
+# Install the application dependencies
+# --chown is used to give the user permissions to read files in the directory (mainly .env)
+COPY --chown=appuser:appuser requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy in the source code
+COPY --chown=appuser:appuser . ./src 
+
+# Add executables installed by pip to PATH
+ENV PATH="/home/appuser/.local/bin:$PATH"
+
+# expose default streamlit port
+EXPOSE 8501
+
+WORKDIR /home/appuser/app/src/prototype
+
+# empty to force user to set config at runtime
+ENV CONFIG=
+ENV AWS_SHARED_CREDENTIALS_FILE="/home/appuser/app/src/prototype/.aws/credentials"
+ENV AWS_CONFIG_FILE="/home/appuser/app/src/prototype/.aws/config"
+
+CMD python main.py -s -c ${CONFIG} 

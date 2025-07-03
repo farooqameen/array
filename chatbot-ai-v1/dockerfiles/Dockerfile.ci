@@ -1,0 +1,27 @@
+FROM python:3.12
+
+# Setup an app user so the container doesn't run as the root user 
+RUN useradd --create-home appuser
+USER appuser
+
+# Create dir for the app and set as working directory
+WORKDIR /home/appuser/app
+
+# Install the application dependencies
+# --chown is used to give the user permissions to read files in the directory (mainly .env)
+COPY --chown=appuser:appuser requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy in the source code
+COPY --chown=appuser:appuser . ./src 
+
+# Add executables installed by pip to PATH
+ENV PATH="/home/appuser/.local/bin:$PATH"
+
+WORKDIR /home/appuser/app/src
+
+# dummy empty env files 
+ENV AWS_SHARED_CREDENTIALS_FILE="/home/appuser/app/src/tests/.dummy-aws/credentials"
+ENV AWS_CONFIG_FILE="/home/appuser/app/src/tests/.dummy-aws/config"
+
+ENTRYPOINT [ "pytest" ]

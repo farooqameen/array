@@ -1,0 +1,32 @@
+{
+    
+    "chain_config":{
+        "solution_class":"GPTPineconeSolution",
+        "args":{
+            "pinecone_index_name":"rulebook-small-v03",
+            "embed_model":"text-embedding-3-small",
+            "gen_model":"gpt-4o",
+            "search_type": "mmr",
+            "search_k": 8,
+            "search_lambda": 0.25,
+            "pinecone_key": "be9454fc-929a-4f1a-8daa-145882009d63"
+        }
+    },
+   "test_config":{
+        "exe_simple_test": false,
+        "exe_automated_test": true,
+        "automated_test_config":{
+            "max_concurrancy":null,
+            "evaluators":["de_contextual_recall","de_faithfulness","de_noise_awarness","de_correctness"],
+            "dataset_name":"test-dataset-4",
+            "per_q_repeat":3,
+            "split_data":true,
+            "splits": ["procedure"],
+            "judge_name": "openai",
+            "judge_config":{
+                "judge_model":"gpt-4o"
+            },
+            "experiment_name": "config_GPTPineconeSolution_cleaned_v03_k8mmr"
+        }
+    }
+}

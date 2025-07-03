@@ -1,0 +1,13 @@
+# Ignore meta folders and files
+.venv
+.vscode
+.gitignore
+.python-version
+**/.aws
+README.md
+
+#unrelated files to production
+evaluation/
+streamlit_app/
+*.ipynb
+main.py

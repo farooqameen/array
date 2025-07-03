@@ -1,0 +1,35 @@
+{
+    "chain_config": {
+        "solution_class": "GPTPineconeSolution",
+        "args": {
+            "pinecone_index_name": "vol1-rules-metadata",
+            "embed_model": "text-embedding-3-small",
+            "gen_model": "gpt-4o",
+            "search_type": "mmr",
+            "search_k": 8,
+            "search_lambda": 0.25,
+            "pinecone_key": "be9454fc-929a-4f1a-8daa-145882009d63",
+            "has_filter": true,
+            "s3_rules_file_key": "knowledge-base/volume1/chunked-data/datetime=1aug24/rules.csv"
+        }
+    },
+    "test_config":{
+        "exe_simple_test": false,
+        "exe_automated_test": true,
+        "automated_test_config":{
+            "max_concurrancy":null,
+            "evaluators":["de_contextual_recall","de_faithfulness","de_correctness"],
+            "dataset_name": "mvp-test-curated-and-synthetic-1",
+            "per_q_repeat": 1,
+            "split_data": true,
+            "splits": [
+                "base"
+            ],
+            "judge_name": "openai",
+            "judge_config":{
+                "judge_model":"gpt-4o"
+            },
+            "experiment_name": "mvp-test-4"
+        }
+    }
+}

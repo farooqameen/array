@@ -1,0 +1,173 @@
+name: Build and Deploy
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+      - dev
+  
+
+env:
+  AWS_REGION: me-south-1
+  ECR_REPOSITORY: chat_bot
+  ECS_SERVICE_DEV: dev-chatbot-server-service
+  ECS_SERVICE_PROD: prod-chatbot-server-service
+  ECS_CLUSTER_DEV: chatbot
+  ECS_CLUSTER_PROD: chatbot
+  ECS_TASK_DEFINITION_FAM_DEV: dev-chatbot-server-family
+  ECS_TASK_DEFINITION_FAM_PROD: prod-chatbot-server-family
+  CONTAINER_NAME_DEV: dev-chatbot-server-container
+  CONTAINER_NAME_PROD: prod-chatbot-server-container
+
+permissions:
+  id-token: write
+  contents: read
+
+  
+jobs:
+    build:
+        if: github.event.pull_request.merged == true
+        runs-on: ubuntu-latest
+        outputs:
+          IMAGETAG: ${{ steps.create_tag.outputs.tag }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Assume GitHub OIDC Role
+              id: assume-role
+              uses: aws-actions/configure-aws-credentials@v2
+              with:
+                role-to-assume: arn:aws:iam::992382618779:role/GitHub
+                aws-region: ${{ env.AWS_REGION }}
+
+
+            - name: Login to Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v2
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Create new builder
+              run: |
+                  docker buildx create --name mybuilder --use
+
+            - name: Store Existing Caching Image Digest
+              run: |
+                # Check if merging into dev or main and set the appropriate environment variables
+                if [ "${{ github.event.pull_request.base.ref }}" == "dev" ]; then
+                  DEV_CACHE_IMAGE_DIGEST=$(aws ecr list-images --repository-name $ECR_REPOSITORY --filter "tagStatus=TAGGED" --output json | jq -r '.imageIds[] | select(.imageTag=="dev-cache") | .imageDigest')
+                  echo "CACHE_IMAGE_DIGEST=$DEV_CACHE_IMAGE_DIGEST" >> $GITHUB_ENV
+                  
+                  echo "IMAGE_NAME=dev" >> $GITHUB_ENV
+                fi
+
+                if [ "${{ github.event.pull_request.base.ref }}" == "main" ]; then
+                  PROD_CACHE_IMAGE_DIGEST=$(aws ecr list-images --repository-name $ECR_REPOSITORY --filter "tagStatus=TAGGED" --output json | jq -r '.imageIds[] | select(.imageTag=="prod-cache") | .imageDigest')
+                  echo "CACHE_IMAGE_DIGEST=$PROD_CACHE_IMAGE_DIGEST" >> $GITHUB_ENV
+                  
+                  echo "IMAGE_NAME=prod" >> $GITHUB_ENV
+                fi
+                      
+            - name: Create a version tag
+              id: create_tag
+              run: |
+                # Combine build number and date
+                TAG_NAME="build-${{ github.run_number }}-$(date +'%Y%m%d%H%M%S')"
+                echo "tag=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+            - name: Set .dockerignore file 
+              run: | 
+                  cp dockerfiles/.dockerignore.$IMAGE_NAME .dockerignore
+            
+            - name: Set dockerfile
+              run: | 
+                  cp dockerfiles/Dockerfile.$IMAGE_NAME Dockerfile 
+
+            - name: Build and push 
+              uses: docker/build-push-action@v5
+              id: build-image
+              with:
+                context: .
+                file: Dockerfile
+                push: true
+                tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{env.IMAGE_NAME}}-${{ steps.create_tag.outputs.tag }} #tag the image with commit ref
+                builder: mybuilder
+                cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{env.IMAGE_NAME}}-cache
+                cache-to: type=registry,mode=max,image-manifest=true,oci-mediatypes=true,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{env.IMAGE_NAME}}-cache
+
+            - name: Delete Old Cache Images 
+              run: |
+                if [ "${{env.CACHE_IMAGE_DIGEST}}" != "" ]; then
+                  aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageDigest=$CACHE_IMAGE_DIGEST 
+                fi 
+
+    deploy-dev:
+      if: github.base_ref == 'dev'
+      needs: [build]
+      runs-on: ubuntu-latest
+      env:
+        IMAGETAG: ${{ needs.build.outputs.IMAGETAG }}
+      steps:
+        - name: Assume GitHub OIDC Role
+          id: assume-role
+          uses: aws-actions/configure-aws-credentials@v2
+          with:
+            role-to-assume: arn:aws:iam::992382618779:role/GitHub
+            aws-region: ${{ env.AWS_REGION }}
+              
+        - name: Login to Amazon ECR
+          id: login-ecr
+          uses: aws-actions/amazon-ecr-login@v2
+                  
+        - name: Fill in the new image ID in the Amazon ECS task definition
+          id: task-def-dev
+          uses: aws-actions/amazon-ecs-render-task-definition@v1
+          with:
+            task-definition-family: ${{ env.ECS_TASK_DEFINITION_FAM_DEV }}
+            container-name: ${{ env.CONTAINER_NAME_DEV }}
+            image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:dev-${{ env.IMAGETAG }}
+
+        - name: Deploy Amazon ECS task definition
+          uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+          with:
+            task-definition: ${{ steps.task-def-dev.outputs.task-definition }}
+            service: ${{ env.ECS_SERVICE_DEV }}
+            cluster: ${{ env.ECS_CLUSTER_DEV }}   
+    
+    deploy-prod:
+      if: github.base_ref == 'main'
+      needs: [build]
+      runs-on: ubuntu-latest
+      env:
+        IMAGETAG: ${{ needs.build.outputs.IMAGETAG }}
+      steps:
+        - name: Assume GitHub OIDC Role
+          id: assume-role
+          uses: aws-actions/configure-aws-credentials@v2
+          with:
+            role-to-assume: arn:aws:iam::992382618779:role/GitHub
+            aws-region: ${{ env.AWS_REGION }}
+
+
+        - name: Login to Amazon ECR
+          id: login-ecr
+          uses: aws-actions/amazon-ecr-login@v2
+
+        - name: Fill in the new image ID in the Amazon ECS task definition
+          id: task-def-prod
+          uses: aws-actions/amazon-ecs-render-task-definition@v1
+          with:
+            task-definition-family: ${{ env.ECS_TASK_DEFINITION_FAM_PROD }}
+            container-name: ${{ env.CONTAINER_NAME_PROD }}
+            image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:prod-${{ env.IMAGETAG }}
+
+        - name: Deploy Amazon ECS task definition
+          uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+          with:
+            task-definition: ${{ steps.task-def-prod.outputs.task-definition }}
+            service: ${{ env.ECS_SERVICE_PROD }}
+            cluster: ${{ env.ECS_CLUSTER_PROD }}

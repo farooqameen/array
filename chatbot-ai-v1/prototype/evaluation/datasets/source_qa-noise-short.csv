@@ -1,0 +1,38 @@
+﻿question,answer,noise
+What are the requirements to hold a license for a retail bank,"To hold a license for a conventional retail bank in Bahrain, the following requirements must be met: 
+
+There are different requirements for conventional retail bank and Islamic retail bank licenses. Conventional retail banks must undertake deposit-taking and providing credit as a minimum, with the activity of providing credit being a significant part of the bank's business relative to other activities.  Specifically, the activity of providing credit (as defined in the rules) must constitute at least 20% of the total assets of the institution. They may also provide certain Shari'a-compliant banking activities. However, there are different requirements for Islamic retail banks as they can only provide regulated Islamic banking services and are governed by a different set of rules
+
+Additionally, conventional and Islamic retail banks must be licensed either as a retail bank or a wholesale bank, with the nature of activities allowed under each license sub-category specified in the rules.  The CBB will assess the appropriateness of a bank's license category based on its activities, and may require the bank to change its license category if it fails to satisfy the conditions for a conventional retail bank. Can you specify whether it is a conventional or Islamic bank linceses you are inquireing about?",1
+Tell me about code HC-1.1,"This is a generalized description of rule HC-1.1 collected from different volumes in the Rulebook. The answer may or not be correct. In order to provide a more accurate answer, please provide more context
+
+HC-1.1 Principle states that the board of directors has the overall responsibility and accountability for the performance and affairs of the licensee.  The board should retain full and effective control over the licensee and monitor the executive management.  The board is collectively responsible and accountable for the success of the licensee.",1
+tell me about HC-1.1 under Islamic Banking rules,"The HC-1.1 section under the Islamic Banking rules covers the responsibilities of the board of directors (""Board"") of the licensee. The Board must set the ""tone at the top"" and play a leading role in establishing the licensee's corporate culture and values, and oversee management's role in fostering and maintaining a sound corporate and risk culture . The Board must also ensure that no individual or group of directors dominates the Board's decision-making and no individual or group has unfettered powers of decision . Additionally, the Board must approve and oversee the development of the licensee's strategy, business plans and budget, and monitor their implementation .",1
+How much capital do I need to get or maintain my license,"Based on the information provided in the data source, the capital requirements for obtaining or maintaining a license are as follows: 
+
+A licensee must maintain a minimum paid-up capital of BD5,000,000. However, the Central Bank of Bahrain (CBB) may require a greater amount of capital on a case-by-case basis.  Licensees offering a limited scope of short-term installment credit activity may be allowed to maintain a lower capital based on the nature, scale, and size of operations, as determined by the CBB.  In addition to the minimum capital requirement, licensees must also maintain a minimum gearing ratio of 20%. 
+
+The data source also provides specific capital requirements for different types of licensees, such as third party administrators (minimum core capital of BD100,000) , card processing and payment service providers (minimum core capital of BD250,000) , credit reference bureaus (minimum core capital of BD2 million) , Shari'a advisory/review services (minimum core capital of BD30,000) , and crowdfunding platform operators (minimum core capital of BD50,000). The CBB may, at its discretion, require licensees to hold additional capital in an amount and form as the CBB determines, should this be necessary to ensure the financial integrity of the licensee and its ongoing operations. In order to share a more detailed answer, can you specify which type of license?",1
+Tell me in general what are the content of the CBB rulebook,"The CBB Rulebook contains the following key content: 
+
+The CBB Rulebook is issued by the Central Bank of Bahrain (CBB) pursuant to the Central Bank of Bahrain and Financial Institutions Law 2006 ('the CBB Law').  The CBB Law provides for two formal rulemaking instruments: Regulations (made pursuant to Article 37) and Directives (made pursuant to Article 38).  The Rulebook also includes various specific requirements prescribed by other articles in the CBB Law, such as those relating to licensing and the notification and approval of controllers of licensees. 
+
+The Rulebook is divided into different modules, and the Purpose Section of each Module specifies the rulemaking instrument(s) used to issue the content of that Module, as well as the legal basis underpinning the Module's requirements. 
+
+Rules have a binding effect, and if a licensee breaches a Rule, it is liable to enforcement action by the CBB and, in certain cases, criminal proceedings by the Office of the Public Prosecutor. ​
+​
+Guidance, on the other hand, is not binding but rather helps inform a particular Rule or set of Rules, or provides other general information. Compliance with Guidance will generally lead the CBB to assess that the relevant Rule(s) have been complied with, while failure to comply with Guidance will generally be viewed as tending to suggest a breach of a Rule. ​
+​
+The status of each paragraph in the Rulebook is identified by its text format, with Rules in bold and font size 12.  ​
+​",0
+what are the different volumes in the rulebook,"The Rulebook is divided into 7 Volumes, covering different areas of financial services activity : 
+
+Volume 1 covers Conventional Banks . 
+Volume 2 covers Islamic Banks . 
+Volume 3 covers Insurance . 
+Volume 4 covers Investment Business . 
+Volume 5 covers Specialized Activities, including money changers, financing companies, representative offices, administrators, trust service providers, micro-finance institutions, and providers of ancillary services to the financial sector . 
+Volume 6 covers Capital Markets . 
+Volume 7 covers Collective Investment Undertakings . 
+
+Except for Volumes 5, 6 and 7, the basic structure of each Rulebook Volume is the same, starting with a contents page and introduction, and then organized under headings such as High-level Standards, Business Standards, Reporting Requirements, and Enforcement and Redress .",0

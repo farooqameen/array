@@ -1,0 +1,46 @@
+services:
+  cbb-chatbot-v2-ai:
+    container_name: cbb-chatbot-v2-ai
+    build: 
+      context: ..
+      dockerfile: .devcontainer/python/Dockerfile
+      args:
+        # Update 'VARIANT' to pick a version of Python: 3, 3.10, 3.9, 3.8, 3.7, 3.6
+        # Append -bullseye or -buster to pin to an OS version.
+        # Use -bullseye variants on local arm64/Apple Silicon.
+        VARIANT: 3.11-buster
+        # Optional Node.js version to install
+        NODE_VERSION: "lts/*"
+    volumes:
+      - ../:/workspaces/cbb-chatbot-v2-ai:cached
+    command: sleep infinity
+    ports:
+      - 8000:8000
+
+
+  # opensearch-node:
+  #   image: opensearchproject/opensearch:latest
+  #   container_name: cbb-chatbot-v2-ai-opensearch-node
+  #   environment:
+  #     - discovery.type=single-node
+  #     - plugins.security.disabled=true
+  #     - OPENSEARCH_INITIAL_ADMIN_PASSWORD=_OPenSA42234 #${OPENSEARCH_INITIAL_ADMIN_PASSWORD}    # Sets the demo admin user password when using demo configuration, required for OpenSearch 2.12 and higher
+  #   volumes:
+  #     - opensearch-data:/usr/share/opensearch/data
+  #   ports:
+  #     - 9200:9200
+  #     - 9600:9600 # required for Performance Analyzer
+
+  # opensearch-dashboards:
+  #   image: opensearchproject/opensearch-dashboards:latest
+  #   container_name: cbb-chatbot-v2-ai-opensearch-dashboards
+  #   ports:
+  #     - 5601:5601
+  #   expose:
+  #     - '5601'
+  #   environment:
+  #     DISABLE_SECURITY_DASHBOARDS_PLUGIN: true
+  #     OPENSEARCH_HOSTS: '["http://cbb-chatbot-v2-ai-opensearch-node:9200"]'
+
+volumes:
+  opensearch-data:

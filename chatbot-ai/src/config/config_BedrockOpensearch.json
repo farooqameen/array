@@ -1,0 +1,14 @@
+{
+    "chain_config": {
+      "solution_class": "BedrockOpensearchSolution",
+      "args": {
+        "embed_model": "Embed Multilingual",
+        "gen_model": "Llama 3.1 405b Instruct",
+        "search_fetch_k": 20,
+        "region_name": "us-west-2",
+        "endpoint_url": "https://bedrock-runtime.us-west-2.amazonaws.com",
+        "temperature": 0.0,
+        "vector_field_name":"embedding"
+      }
+    }
+  }

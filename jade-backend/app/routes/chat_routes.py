@@ -5,7 +5,7 @@ This module defines FastAPI endpoints that connect HTTP requests
 to controller logic for uploading files and querying indexed documents.
 """
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from controllers import chat_controller
 from models.api_models import QueryRequest, QueryResponse, UploadResponse
 from logger import logger
@@ -14,15 +14,16 @@ router = APIRouter()
 
 
 @router.post("/chat/upload/", response_model=UploadResponse)
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    rag_type: str = Form(..., regex="^(HRAG|TradRAG)$")
+):
     """
-    Upload a document to the server.
-
-    Accepts a file and delegates to the controller for saving it.
-    Returns confirmation upon success.
+    Upload a document to the server and (re)build the selected RAG index.
 
     Args:
         file (UploadFile): The document file to be uploaded.
+        rag_type (str): The type of RAG index to build ("HRAG" or "TradRAG").
 
     Returns:
         UploadFileResponse: Upload metadata including filename and message.
@@ -30,10 +31,10 @@ async def upload_document(file: UploadFile = File(...)):
     Raises:
         HTTPException: If an error occurs during file handling or saving.
     """
-    logger.info(f"Received upload request for file: {file.filename}")
+    logger.info(f"Received upload request for file: {file.filename} with RAG type: {rag_type}")
     try:
-        response = await chat_controller.upload_document(file)
-        logger.info(f"File {file.filename} uploaded successfully.")
+        response = await chat_controller.upload_document(file, rag_type)
+        logger.info(f"File {file.filename} uploaded and {rag_type} index built successfully.")
         return response
     except HTTPException as e:
         logger.error(f"HTTPException during file upload: {e.detail}", exc_info=True)
@@ -46,9 +47,9 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 @router.post("/queryHRAG", response_model=QueryResponse)
-async def query_rulebook_endpoint(request: QueryRequest):
+async def query_HRAG(request: QueryRequest):
     """
-    Query the rulebook with a user-provided question.
+    Query document using the Hierarchical RAG (HRAG) system with a user-provided question.
 
     Forwards the query to the controller which interacts with
     the LLM-powered query engine.
@@ -64,29 +65,8 @@ async def query_rulebook_endpoint(request: QueryRequest):
     """
     logger.info(f"Received query request: '{request.query}'")
 
-    structured_prompt = f"""
-    You are a technical documentation assistant. Answer the user's question and provide your response in the following EXACT format:
-
-    [Your direct answer here]
-
-    REFERENCES:
-    [For each source used, provide:]
-    - Source: [Exact document/module name]
-    - Chapter: [Chapter name and number]
-    - Section: [Specific section if available]
-    - Page/Location: [If available]
-
-    CONFIDENCE: [High/Medium/Low based on source clarity]
-
-    RELATED_TOPICS: [Any related topics that might be helpful]
-
-    User Question: {request.query}
-
-    CRITICAL: Do not deviate from this format. Always include at least one reference with specific module and chapter information. If information spans multiple documents, list each reference separately.
-    """
-
     try:
-        response = await chat_controller.query_hrag(structured_prompt)
+        response = await chat_controller.query_hrag(request.query)
         logger.info("Query successfully processed.")
         return response
     except HTTPException as e:
@@ -97,8 +77,6 @@ async def query_rulebook_endpoint(request: QueryRequest):
             f"An unexpected error occurred during rulebook query: {e}", exc_info=True
         )
         raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
-
-
 
 
 @router.post("/queryRAG", response_model=QueryResponse)

@@ -35,14 +35,14 @@ class AppSettings:
     # Directory paths
     PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
     UPLOAD_DIR: Path = PROJECT_ROOT / "documents"
-    DATA_DIR: Path = PROJECT_ROOT / "data"
+    DATA_DIR: Path = PROJECT_ROOT / "documents"
     HRAG_INDEX_PATH: Path = PROJECT_ROOT / "storage/hrag_index"
     TRAD_RAG_INDEX_PATH: Path = PROJECT_ROOT / "storage/trad_rag_index"
 
     # LLM configuration
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    CHUNK_SIZES: List[int] = [2048, 512, 256]
-    CHUNK_OVERLAP: int = 20
+    CHUNK_SIZES: List[int] = [1024, 512, 256]
+    CHUNK_OVERLAP: int = 100
 
     # Logging configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()

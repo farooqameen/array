@@ -57,35 +57,55 @@ app/
 
 ### Prerequisites
 
-  * Python 3.9+
-  * `pip` (Python package installer)
+  * Python 3.13 (see `.python-version` for the recommended version)
+  * [`uv`](https://github.com/astral-sh/uv) (fast Python package manager; replaces `pip install`)
   * An AWS account with access to Bedrock and the required models (Claude 3.5 Sonnet, Amazon Titan Embeddings)
 
 ### 1. Prepare Environment Variables
 
-Create a `.env` file in the `app/` directory and add your AWS Bedrock credentials:
+Run the following comands in your bash terminal to set the AWS environment variables:
 
-```env
-AWS_ACCESS_KEY_ID="your_aws_access_key_id"
-AWS_SECRET_ACCESS_KEY="your_aws_secret_access_key"
-AWS_REGION="your_aws_region"  # e.g., us-east-1
-# AWS_SESSION_TOKEN="your_aws_session_token"  # Only if using temporary credentials
+```bash
+$Env:AWS_ACCESS_KEY_ID="YOUR AWS ACCESS KEY ID"
+$Env:AWS_SECRET_ACCESS_KEY= "YOUR AWS SECRET ACCESS KEY"
+$Env:AWS_SESSION_TOKEN= "YOUR AWS SESSION TOKEN"
 ```
+
 
 Replace the values with your actual AWS credentials.  
 Ensure your AWS user/role has permissions for Bedrock and the models you intend to use.
 
 ### 2. Install Dependencies
 
-Navigate to the `app/` directory and install the required Python packages:
+Navigate to the project root and install the required Python packages using [`uv`](https://github.com/astral-sh/uv):
 
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
+
+> **Note:**  
+> This project uses `uv` for dependency management, with a `pyproject.toml` and `uv.lock` file for reproducible installs.  
+> Make sure you have `uv` installed (`pip install uv` or see [uv GitHub](https://github.com/astral-sh/uv#installation)).
 
 ### 3. Add Documents for Indexing
 
-Place your PDF files into the `data/` directory inside `app/`. These documents will be used to build the hierarchical index on application startup.
+
+Use the `POST /chat/upload/` endpoint to upload a PDF for indexing.  
+You must specify the `rag_type` as either `HRAG` or `TradRAG`.
+
+- Endpoint: `POST /chat/upload/`
+- Form fields:
+  - `file`: The PDF file to upload.
+  - `rag_type`: `HRAG` or `TradRAG`
+
+Example using `curl`:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/chat/upload/" \
+  -F "file=@your_document.pdf" \
+  -F "rag_type=HRAG"
+```
+
 
 ### 4. Run the Application
 
@@ -94,11 +114,16 @@ From the `app/` directory, start the FastAPI application using Uvicorn:
 ```bash
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
-
 * `main:app`: Runs the `app` object from `main.py`.
 * `--host 127.0.0.1`: Binds to localhost.
 * `--port 8000`: Sets the server port.
 * `--reload`: Enables auto-reloading on code changes (development only).
+
+or simply run the main file:
+
+```bash
+python .\main.py
+```
 
 Access the application at `http://127.0.0.1:8000`.
 
@@ -111,25 +136,27 @@ Access the application at `http://127.0.0.1:8000`.
 
 * **`POST /query`**
 
-  * Query the indexed documents using natural language.
 
-  * JSON body example:
+After uploading and indexing your PDF, use the query endpoints to interact with the indexed content.
 
-    ```json
-    {
-      "query": "Summarize the main topics."
-    }
-    ```
+- **Hierarchical RAG:**  
+  Endpoint: `POST /queryHRAG`  
+  Body:
+  ```json
+  {
+    "query": "Summarize the main topics."
+  }
+  ```
 
-  * Returns generated LLM responses and relevant references.
+- **Traditional RAG:**  
+  Endpoint: `POST /queryRAG`  
+  Body:
+  ```json
+  {
+    "query": "Summarize the main topics."
+  }
+  ```
 
-## 📝 Notes
+Both endpoints return generated LLM responses and relevant references.
 
-* On startup, the system:
-
-  * Initializes AWS Bedrock LLM (Claude 3.5 Sonnet) and embedding models (Amazon Titan).
-  * Loads existing PDFs from `data/` or builds a new hierarchical index.
-  * Loads or builds the hierarchical RAG index stored in `storage/hrag_index/`.
-  * Sets up a global query engine for efficient retrieval.
-* Logs are written to `logs/app.log` with rotation.
-* Ensure PDF documents are in `data/` before first run or index rebuild.
+---

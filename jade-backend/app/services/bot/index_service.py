@@ -14,6 +14,8 @@ from llama_index.core import (
     VectorStoreIndex,
 )
 from llama_index.core.node_parser import HierarchicalNodeParser
+from llama_index.core.retrievers import AutoMergingRetriever
+from llama_index.core.query_engine import RetrieverQueryEngine
 
 from config.settings import settings
 from logger import logger
@@ -49,7 +51,7 @@ def build_hierarchical_index(data_dir: str, index_path: str) -> None:
     documents = []
 
     for fname in os.listdir(data_dir):
-        if fname.lower().endswith(".pdf"):
+        if fname.lower().endswith(".pdf") and "rulebook" in fname.lower():
             path = os.path.join(data_dir, fname)
             try:
                 doc_objs = SimpleDirectoryReader(input_files=[path]).load_data()
@@ -96,6 +98,18 @@ def build_hierarchical_index(data_dir: str, index_path: str) -> None:
                         doc.metadata, text
                     )
 
+                documents.extend(doc_objs)
+            except Exception as e:
+                logger.error(f"Error processing document {fname}: {e}", exc_info=True)
+                continue
+        elif fname.lower().endswith(".pdf"):
+            # For non-rulebook PDFs, just load them without metadata extraction
+            path = os.path.join(data_dir, fname)
+            try:
+                doc_objs = SimpleDirectoryReader(input_files=[path]).load_data()
+                for doc in doc_objs:
+                    doc.metadata = doc.metadata or {}
+                    doc.metadata = {"filename": fname}
                 documents.extend(doc_objs)
             except Exception as e:
                 logger.error(f"Error processing document {fname}: {e}", exc_info=True)
@@ -175,13 +189,15 @@ def build_traditional_index(data_dir: str, index_path: str) -> None:
         raise
 
 
-def get_hrag_query_engine(index_path: str):
+
+def get_hrag_query_engine(index_path: str, top_k: int = 10):
     """
-    Load a query engine from the persisted index storage.
+    Load a query engine from the persisted index storage with auto-merging retrieval.
 
     This function restores the hierarchical index from disk and
     returns a query engine instance capable of answering natural language
-    questions over the indexed documents.
+    questions over the indexed documents, using auto-merging retrieval
+    to provide richer context.
 
     Args:
         index_path (str): Directory path where the index is stored.
@@ -196,8 +212,9 @@ def get_hrag_query_engine(index_path: str):
     try:
         storage_context = StorageContext.from_defaults(persist_dir=index_path)
         index = load_index_from_storage(storage_context)
-        query_engine = index.as_query_engine()
-        logger.info("Query engine loaded successfully.")
+        retriever = index.as_retriever(similarity_top_k=top_k)
+        query_engine = RetrieverQueryEngine.from_args(retriever=retriever)
+        logger.info("HRAG query engine with auto-merging loaded successfully.")
         return query_engine
     except Exception as e:
         logger.error(
@@ -206,29 +223,15 @@ def get_hrag_query_engine(index_path: str):
         raise RuntimeError(f"Failed to load query engine: {e}. Ensure index is built.")
 
 
-def get_traditional_query_engine(index_path: str):
-    """
-    Load a traditional RAG query engine from the persisted index storage.
 
-    This function restores the traditional index from disk and
-    returns a query engine instance capable of answering natural language
-    questions over the indexed documents.
-
-    Args:
-        index_path (str): Directory path where the index is stored.
-
-    Returns:
-        query_engine: A query engine instance built from the loaded index.
-
-    Raises:
-        RuntimeError: If the index cannot be loaded successfully.
-    """
+def get_traditional_query_engine(index_path: str, top_k: int = 20):
     logger.info(f"Loading traditional RAG query engine from: {index_path}")
     try:
         storage_context = StorageContext.from_defaults(persist_dir=index_path)
         index = load_index_from_storage(storage_context)
-        query_engine = index.as_query_engine()
-        logger.info("Traditional RAG query engine loaded successfully.")
+        retriever = index.as_retriever(similarity_top_k=top_k) 
+        query_engine = RetrieverQueryEngine.from_args(retriever=retriever)
+        logger.info(f"Traditional RAG query engine loaded successfully with top_k={top_k}.")
         return query_engine
     except Exception as e:
         logger.error(

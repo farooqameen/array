@@ -14,7 +14,6 @@ async def lifespan(app: FastAPI):
     logger.info("Application startup sequence initiated.")
     await initialize_application(app) 
     logger.info("Application startup sequence completed.")
-    logger.info(os.getenv("OPENSEARCH_PASS"))
     yield
     logger.info("Application shutdown sequence initiated.")
     logger.info("Application shutdown sequence completed.")

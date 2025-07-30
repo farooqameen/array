@@ -1,0 +1,23 @@
+FROM node:24-alpine
+# Setting working directory. All the path will be relative to WORKDIR
+WORKDIR /usr/src/app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source files
+COPY . .
+
+# Building app
+RUN pnpm build
+
+EXPOSE 3000
+
+# Running the app
+CMD [ "pnpm", "start" ]

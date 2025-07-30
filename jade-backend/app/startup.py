@@ -7,19 +7,19 @@ for the FastAPI application.
 """
 
 import os
-import shutil
+
+from config.settings import settings
+from controllers.chat_controller import set_query_engine
 from fastapi import FastAPI
+from logger import logger
 from services.bot.index_service import (
     get_hrag_query_engine,
     get_traditional_query_engine,
 )
 from services.bot.llm_service import initialize_llm_settings
-from controllers.chat_controller import set_hrag_query_engine, set_trad_rag_query_engine
-from config.settings import settings
-from logger import logger
 
 
-async def initialize_application(app: FastAPI):
+async def initialize_application(_app: FastAPI):
     """
     Initializes the application on startup.
 
@@ -45,7 +45,8 @@ async def initialize_application(app: FastAPI):
     # Check that the data directory exists
     if not os.path.exists(data_dir):
         logger.error(
-            f"Error: The directory '{data_dir}' does not exist. Please create this directory."
+            "Error: The directory %s does not exist. Please create this directory.",
+            data_dir,
         )
         return
 
@@ -54,11 +55,11 @@ async def initialize_application(app: FastAPI):
     # Optionally, load existing indexes and query engines if present
     if os.path.exists(hrag_index_path) and os.listdir(hrag_index_path):
         query_engine = get_hrag_query_engine(hrag_index_path)
-        set_hrag_query_engine(query_engine)
+        set_query_engine(query_engine, "HRAG")
         logger.info("HRAG query engine loaded and set.")
     if os.path.exists(trad_rag_index_path) and os.listdir(trad_rag_index_path):
         query_engine = get_traditional_query_engine(trad_rag_index_path)
-        set_trad_rag_query_engine(query_engine)
+        set_query_engine(query_engine, "TradRAG")
         logger.info("Traditional RAG query engine loaded and set.")
 
     logger.info("Application initialization complete.")

@@ -2,15 +2,13 @@
 Service module for initializing LLM and embedding models.
 
 This module configures the global LlamaIndex settings to use
-Google Gemini models for both language and embedding tasks.
+AWS Bedrock models for both language and embedding tasks.
 """
 
-import os
-from llama_index.core.settings import Settings
-from llama_index.llms.bedrock import Bedrock
-from llama_index.embeddings.bedrock import BedrockEmbedding
-from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from config.settings import settings
+from llama_index.core.settings import Settings
+from llama_index.embeddings.bedrock import BedrockEmbedding
+from llama_index.llms.bedrock import Bedrock
 from logger import logger
 
 
@@ -25,37 +23,19 @@ def initialize_llm_settings():
         ValueError: If AWS credentials are not set in the environment.
         RuntimeError: If initialization of LLM or embedding model fails.
     """
-    aws_access_key_id = settings.AWS_ACCESS_KEY_ID
-    aws_secret_key = settings.AWS_SECRET_ACCESS_KEY
-    aws_region = settings.AWS_REGION
-    aws_session = settings.AWS_SESSION_TOKEN
-    
-
-    if not (aws_access_key_id and aws_secret_key):
-        logger.critical(
-            "AWS credentials not found in environment variables. Please set it in your .env file."
-        )
-        raise ValueError("AWS credentials not set.")
 
     try:
         llm = Bedrock(
-            model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
-            region_name= aws_region,
-            max_tokens = 200,
-            temperature = 0.1,
-            context_size = 200000,
-            # aws_access_key_id = aws_access_key_id,
-            # aws_secret_access_key = aws_secret_key,
-
+            model=settings.LLM_MODEL,
+            region_name=settings.AWS_REGION,
+            max_tokens=settings.LLM_MAX_TOKENS,
+            temperature=settings.LLM_TEMPERATURE,
+            context_size=settings.LLM_CONTEXT_SIZE,
         )
         embed_model = BedrockEmbedding(
-            model = "cohere.embed-multilingual-v3",
-            region_name= aws_region,
-            # aws_access_key_id = aws_access_key_id,
-            # aws_secret_access_key = aws_secret_key,
-            # aws_session_token = aws_session,
+            model=settings.LLAMAINDEX_EMBEDDING_MODEL,
+            region_name=settings.AWS_REGION,
         )
-
 
         Settings.llm = llm
         Settings.embed_model = embed_model
@@ -63,10 +43,10 @@ def initialize_llm_settings():
             "LlamaIndex LLM and Embedding models initialized successfully with AWS Bedrock."
         )
 
-    except Exception as e:
+    except Exception as exc:
         logger.critical(
-            f"Failed to initialize LLM and embedding models: {e}", exc_info=True
+            "Failed to initialize LLM and embedding models: %s", exc, exc_info=True
         )
         raise RuntimeError(
             "Failed to initialize LLM services. Check AWS credentials and network."
-        )
+        ) from exc

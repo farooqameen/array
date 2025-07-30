@@ -16,40 +16,23 @@ This project implements a robust Retrieval-Augmented Generation (RAG) system des
 ## Project Structure
 
 ```
-app/
-├── main.py                           # FastAPI application entry point, defines lifespan events and includes API routes.
-├── startup.py                        # Contains application initialization logic (LLM setup, index build/load).
-├── config/
-│   ├── cors.py                       # CORS middleware configuration.
-│   └── settings.py                   # Centralized configuration for environment-dependent settings and file paths.
-├── controllers/
-│   ├── chat_controller.py            # Handles the core business logic for document upload and query processing.
-│   └── search_controller.py          # Handles search-related API logic.
-├── logger.py                         # Configures and sets up the application-wide logging system.
-├── models/
-│   └── api_models.py                 # Defines Pydantic models for API request and response validation.
-├── routes/
-│   ├── chat_routes.py                # Defines API endpoints (e.g., /upload, /query) and routes requests to controllers.
-│   └── search_routes.py              # Search-related API routes.
-├── services/
-│   ├── index_service.py              # Manages the creation, persistence, and loading of the hierarchical LlamaIndex.
-│   ├── llm_service.py                # Handles the initialization of AWS Bedrock LLM and embedding models.
-│   ├── metadata_extractor.py         # Implements logic for extracting and enriching metadata from document text.
-│   ├── bot/
-│   │   ├── index_service.py          # Bot-related indexing services.
-│   │   ├── llm_service.py            # Bot-related LLM services.
-│   │   └── metadata_extractor.py     # Bot-related metadata extraction.
-│   └── search/
-│       ├── opensearch.py             # OpenSearch integration.
-│       └── pdf_parser.py             # PDF parsing logic.
-├── utils/
-│   └── file_utils.py                 # Provides utility functions, primarily for secure file handling.
-├── data/                             #  Place your PDF documents here for indexing.
-├── documents/                        # Temporary storage for uploaded PDF documents via API.
-├── logs/
-│   └── app.log                       # Application log file with rotation.
-└── storage/
-└── hrag_index/                       # Persistent storage for the LlamaIndex (e.g., vector stores, docstore, graph).
+.
+├── .devcontainer       # Development container configuration for VS Code
+└── app                 # Main application directory
+    ├── .env                # Environment variables/secrets (OpenSearch, S3 Bucket)
+    ├── config              # Application configuration settings and constants
+    ├── controllers         # Request handlers and business logic coordination 
+    ├── core                # Core application components (initialization, lifespan)
+    ├── models              # Data models and Pydantic schemas for API requests/responses
+    ├── prompts             # LLM prompt templates for RAG and chat functionality
+    ├── router              # FastAPI route definitions and endpoint mappings
+    ├── services            # Business logic services organized by functionality:
+    │   ├── bot                 # Chatbot and conversation handling services
+    │   ├── csv                 # CSV file processing and analysis services
+    │   ├── search              # OpenSearch integration and search functionality
+    │   └── stores              # Data storage and retrieval services
+    └── utils             # Utility functions and helper modules
+
 
 ```
 
@@ -57,25 +40,40 @@ app/
 
 ### Prerequisites
 
-  * Python 3.13 (see `.python-version` for the recommended version)
+  * [Python 3.13](https://www.python.org/downloads/) (see `.python-version` for the recommended version)
   * [`uv`](https://github.com/astral-sh/uv) (fast Python package manager; replaces `pip install`)
-  * An AWS account with access to Bedrock and the required models (Claude 3.5 Sonnet, Amazon Titan Embeddings)
+  * AWS account with access to Bedrock and the required models (Claude 3.5 Sonnet, Amazon Titan Embeddings)
+  * [AWS CLI version 2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) configured with appropriate credentials (`aws configure`)
 
-### 1. Prepare Environment Variables
+**Important:** Ensure your `.env` file contains all necessary environment variables, including OpenSearch parameters and other required configuration settings.
 
-Run the following comands in your bash terminal to set the AWS environment variables:
+
+### 1. Authenticate Using AWS CLI
+
+Configure AWS SSO and authenticate:
 
 ```bash
-$Env:AWS_ACCESS_KEY_ID="YOUR AWS ACCESS KEY ID"
-$Env:AWS_SECRET_ACCESS_KEY= "YOUR AWS SECRET ACCESS KEY"
-$Env:AWS_SESSION_TOKEN= "YOUR AWS SESSION TOKEN"
+aws configure sso
+aws sso login
 ```
 
 
-Replace the values with your actual AWS credentials.  
-Ensure your AWS user/role has permissions for Bedrock and the models you intend to use.
+### 2. Prepare Your Environment
 
-### 2. Install Dependencies
+Open a terminal in your project root and run:
+
+```bash
+python -m venv .venv
+```
+
+Activate the virtual environment:
+
+```bash
+.\.venv\Scripts\Activate.ps1
+```
+
+
+### 3. Install Dependencies
 
 Navigate to the project root and install the required Python packages using [`uv`](https://github.com/astral-sh/uv):
 
@@ -86,25 +84,6 @@ uv sync
 > **Note:**  
 > This project uses `uv` for dependency management, with a `pyproject.toml` and `uv.lock` file for reproducible installs.  
 > Make sure you have `uv` installed (`pip install uv` or see [uv GitHub](https://github.com/astral-sh/uv#installation)).
-
-### 3. Add Documents for Indexing
-
-
-Use the `POST /chat/upload/` endpoint to upload a PDF for indexing.  
-You must specify the `rag_type` as either `HRAG` or `TradRAG`.
-
-- Endpoint: `POST /chat/upload/`
-- Form fields:
-  - `file`: The PDF file to upload.
-  - `rag_type`: `HRAG` or `TradRAG`
-
-Example using `curl`:
-
-```bash
-curl -X POST "http://127.0.0.1:8000/chat/upload/" \
-  -F "file=@your_document.pdf" \
-  -F "rag_type=HRAG"
-```
 
 
 ### 4. Run the Application
@@ -125,17 +104,42 @@ or simply run the main file:
 python .\main.py
 ```
 
-Access the application at `http://127.0.0.1:8000`.
+Access the application at `http://127.0.0.1:8000/docs`.
 
-### 5. API Endpoints
+### 6. API Endpoints
 
-* **`POST /upload/`**
+#### Chat Endpoints
 
-  * Upload a single PDF document to the `documents/` directory.
-  * `multipart/form-data` with a `file` field.
+- **POST `/chat/upload/`**  
+  Upload a document and (re)build the selected RAG index.
 
-* **`POST /query`**
+- **POST `/queryHRAG`**  
+  Query document using the Hierarchical RAG (HRAG) system.
 
+- **POST `/queryRAG`**  
+  Query the traditional RAG system.
+
+- **POST `/clearRAGDocs`**  
+  Clear the RAG index.
+
+#### OpenSearch Endpoints
+
+- **POST `/search/upload/`**  
+  Upload multiple PDFs and index their content into OpenSearch.
+
+- **GET `/search`**  
+  Search within a specific OpenSearch index.
+
+#### CSV & PDF Endpoints
+
+- **POST `/csv/upload`**  
+  Upload a CSV file and return summary and chart suggestions.
+
+- **POST `/pdf/upload`**  
+  Upload a PDF file, extract tables, and return summary and chart suggestions.
+
+- **POST `/csv/query`**  
+  Stream query response from uploaded CSV using LLM.
 
 After uploading and indexing your PDF, use the query endpoints to interact with the indexed content.
 
@@ -158,5 +162,52 @@ After uploading and indexing your PDF, use the query endpoints to interact with 
   ```
 
 Both endpoints return generated LLM responses and relevant references.
+
+## 🐳 Setup & Running with Dev Container in VS Code
+
+### Prerequisites
+
+  * [Docker](https://www.docker.com/get-started) installed and running on your machine (can be installed through the Company Portal)
+  * [Visual Studio Code](https://code.visualstudio.com/) with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+  * AWS account with access to Bedrock and the required models (Claude 3.5 Sonnet, Amazon Titan Embeddings)
+
+**Important:** Ensure your `.env` file contains all necessary environment variables, including OpenSearch parameters and other required configuration settings.
+
+### 1. Open Project in Dev Container
+
+1. Clone the repository and open it in VS Code
+2. When prompted, click "Reopen in Container" or use the Command Palette (`Ctrl+Shift+P`) and select "Dev Containers: Reopen in Container"
+3. VS Code will build the dev container automatically with all dependencies pre-installed
+
+### 2. Configure AWS Authentication
+
+The dev container includes the AWS CLI pre-installed. Configure your AWS credentials:
+
+```bash
+aws configure sso
+aws sso login
+```
+
+### 3. Run the Application
+
+The dev container automatically sets up the Python environment. From the `app/` directory, start the application:
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+or simply run:
+
+```bash
+python main.py
+```
+
+VS Code will automatically forward port 8000, and you can access the application at `http://localhost:8000/docs`.
+
+### Benefits of Using Dev Container
+
+  * **Consistent Environment**: All team members work in identical development environments
+  * **Pre-installed Dependencies**: AWS CLI, Git, Python, and all required tools are ready to use
+  * **Automatic Port Forwarding**: VS Code automatically forwards application ports to your host machine
 
 ---

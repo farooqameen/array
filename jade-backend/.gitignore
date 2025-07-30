@@ -60,6 +60,14 @@ Thumbs.db
 
 # RAG index files
 storage/
+documents/
 
 # .vscode
 .vscode
+
+# Python packaging metadata
+*.egg-info/
+
+# Ruff cache
+.ruff_cache
+.ruff_cache/

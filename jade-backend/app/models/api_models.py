@@ -1,3 +1,4 @@
+# pylint: disable=line-too-long
 """
 API models used for request and response validation in the application.
 
@@ -5,8 +6,9 @@ These Pydantic models define the structure for query inputs,
 query results, and file upload confirmations.
 """
 
-from pydantic import BaseModel
-from typing import List, Optional
+from typing import Dict, List, Literal, Optional, Union
+
+from pydantic import BaseModel, RootModel
 
 
 class QueryRequest(BaseModel):
@@ -29,6 +31,18 @@ class QueryResponse(BaseModel):
     """
 
     response: str
+
+
+class ClearRAGResponse(BaseModel):
+    """
+    Model for the response returned after clearing the RAG index.
+    Attributes:
+        status (str): "success" indicating the RAG index was cleared.
+        message (str): A confirmation message indicating the RAG index was cleared successfully.
+    """
+
+    status: str
+    message: str
 
 
 class FileUploadResult(BaseModel):
@@ -86,3 +100,100 @@ class SearchResponse(BaseModel):
     query: str
     results: List[SearchResultItem]
     reason: Optional[str] = None
+
+
+class ChartSuggestion(BaseModel):
+    """
+    Model representing a single chart configuration suggestion.
+
+    Attributes:
+        x (Optional[str]): The column name to use for the x-axis.
+        y (Optional[List[str]]): A list of column names to use for the y-axis.
+        type (str): The type of chart to render (e.g., 'bar', 'line', 'histogram').
+        title (str): A descriptive title for the suggested chart.
+        x_type (Optional[str]): Inferred type of the x-axis column.
+        y_types (Optional[List[str]]): Inferred types of the y-axis columns.
+        grouped (Optional[bool]): Whether the chart data should be grouped (only applicable for line charts).
+        aggregation (Optional[Literal["sum", "avg"]]): Type of aggregation used for grouped line charts.
+        xFormatHint (Optional[Literal["year", "month", "date"]]): Formatting hint for rendering datetime x-axis.
+    """
+
+    x: Optional[str] = None
+    y: Optional[List[str]] = None
+    type: str
+    title: str
+    x_type: Optional[Literal["numeric", "categorical", "datetime"]] = None
+    y_types: Optional[List[Literal["numeric", "categorical", "datetime"]]] = None
+    grouped: Optional[bool] = None
+    aggregation: Optional[Literal["sum", "avg"]] = None
+    xFormatHint: Optional[Literal["year", "month", "date"]] = None
+
+
+class ChartSuggestionResponse(RootModel[list[ChartSuggestion]]):
+    """
+    Wrapper model for a list of chart suggestions.
+
+    This enables FastAPI to serialize/validate responses that return a plain list of ChartSuggestion objects.
+    """
+
+
+class CsvQueryRequest(BaseModel):
+    """
+    Model for a query request made against CSV data.
+
+    Attributes:
+        query (str): The user's natural language question or command related to the CSV.
+    """
+
+    query: str
+
+
+class CSVUploadResponse(BaseModel):
+    """
+    Model for the response returned after a CSV file upload.
+
+    Attributes:
+        filename (str): The name of the uploaded file.
+        message (str): A human-readable message indicating success or details of the operation.
+        path (str): The file path where the uploaded CSV was saved.
+        summary (Optional[dict]): A summary of the data, including column metrics and descriptions.
+        chart_suggestions (Optional[Union[list, dict]]): A list or dict of suggested charts based on the uploaded CSV data.
+    """
+
+    filename: str
+    message: str
+    path: str
+    summary: Optional[dict] = None
+    chart_suggestions: Optional[Union[list, dict]] = None
+
+
+class PDFUploadResponse(BaseModel):
+    """
+    Model for the response returned after a PDF file upload.
+
+    Attributes:
+        filename (str): The name of the uploaded PDF file.
+        message (str): A human-readable message indicating success or details of the operation.
+        path (str): The file path where the uploaded PDF was saved.
+        summary (dict): A summary of the extracted tabular data, including metrics and column descriptions.
+        chart_suggestions (list): A list of suggested charts derived from the extracted table data.
+        data (Optional[List[Dict]]): The parsed table from the PDF represented as a list of dictionaries.
+    """
+
+    filename: str
+    message: str
+    path: str
+    summary: dict
+    chart_suggestions: list
+    data: Optional[List[Dict]] = None
+
+
+class HealthResponse(BaseModel):
+    """
+    Model for health check responses returned by the system.
+
+    Attributes:
+        status (str): The health status of the service ("healthy" or "unhealthy").
+    """
+
+    status: str

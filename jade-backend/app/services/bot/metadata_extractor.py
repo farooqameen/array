@@ -6,9 +6,14 @@ from regulatory rulebook documents, enabling more accurate
 hierarchical indexing and search relevance.
 """
 
+import asyncio
+import json
 import re
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
+from llama_index.core.settings import Settings
 from logger import logger
+from app.prompts.queries import STRUCTURED_EXTRACTION_PROMPT
 
 
 class RulebookMetadataExtractor:
@@ -32,7 +37,10 @@ class RulebookMetadataExtractor:
 
         # Document type patterns
         self.users_guide_pattern = r"Users?'?\s*Guide"
-        self.date_pattern = r"(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})"
+        self.date_pattern = (
+            r"(January|February|March|April|May|June|July|August|September|"
+            r"October|November|December)\s+(\d{4})"
+        )
 
         # Rule vs Guidance identification
         self.rule_indicators = ["must", "shall", "required", "obliged", "mandatory"]
@@ -42,7 +50,9 @@ class RulebookMetadataExtractor:
         volume_match = re.search(self.volume_pattern, text, re.IGNORECASE)
         if volume_match:
             logger.debug(
-                f"Extracted Volume: {volume_match.group(1)}, Type: {self._determine_volume_type(volume_match.group(2))}"
+                "Extracted Volume: %s, Type: %s",
+                volume_match.group(1),
+                self._determine_volume_type(volume_match.group(2)),
             )
             return {
                 "volume_number": volume_match.group(1),
@@ -55,7 +65,9 @@ class RulebookMetadataExtractor:
         module_match = re.search(self.module_pattern, text, re.IGNORECASE)
         if module_match:
             logger.debug(
-                f"Extracted Module: {module_match.group(1)}, Category: {self._categorize_module(module_match.group(2))}"
+                "Extracted Module: %s, Category: %s",
+                module_match.group(1),
+                self._categorize_module(module_match.group(2)),
             )
             return {
                 "module_code": module_match.group(1),
@@ -68,7 +80,9 @@ class RulebookMetadataExtractor:
         chapter_match = re.search(self.chapter_pattern, text, re.IGNORECASE)
         if chapter_match:
             logger.debug(
-                f"Extracted Chapter: {chapter_match.group(1)}, Type: {self._determine_chapter_type(chapter_match.group(1))}"
+                "Extracted Chapter: %s, Type: %s",
+                chapter_match.group(1),
+                self._determine_chapter_type(chapter_match.group(1)),
             )
             return {
                 "chapter_reference": chapter_match.group(1),
@@ -81,7 +95,9 @@ class RulebookMetadataExtractor:
         section_match = re.search(self.section_pattern, text, re.IGNORECASE)
         if section_match:
             logger.debug(
-                f"Extracted Section: {section_match.group(1)}, Page: {section_match.group(2)}"
+                "Extracted Section: %s, Page: %s",
+                section_match.group(1),
+                section_match.group(2),
             )
             return {
                 "section_reference": section_match.group(1),
@@ -97,7 +113,7 @@ class RulebookMetadataExtractor:
             latest_date = max(
                 date_matches, key=lambda x: (int(x[1]), self._month_to_number(x[0]))
             )
-            logger.debug(f"Extracted Date: {latest_date[0]} {latest_date[1]}")
+            logger.debug("Extracted Date: %s %s", latest_date[0], latest_date[1])
             return {
                 "last_updated": f"{latest_date[0]} {latest_date[1]}",
                 "update_month": latest_date[0],
@@ -140,7 +156,7 @@ class RulebookMetadataExtractor:
             context["applies_to"] = "All Licensees"
 
         if context:
-            logger.debug(f"Extracted regulatory context: {context}")
+            logger.debug("Extracted regulatory context: %s", context)
         return context
 
     def _determine_volume_type(self, title: str) -> str:
@@ -203,7 +219,8 @@ def determine_hierarchy_level(metadata: Dict[str, Any]) -> str:
     Determine the hierarchical level of a document or node based on its metadata.
 
     Args:
-        metadata (dict): Metadata dictionary containing keys like volume_number, chapter_reference, etc.
+        metadata (dict): Metadata dictionary containing keys like:
+        volume_number, chapter_reference, etc.
 
     Returns:
         str: One of "Volume", "Module", "Chapter", "Section", or "Document".
@@ -313,3 +330,54 @@ def enhance_node_metadata(node: Any, extractor: RulebookMetadataExtractor) -> No
         )
         if paragraph_matches:
             node.metadata["paragraph_references"] = list(set(paragraph_matches))
+
+
+async def generate_structured_data_from_chunk(chunk_text: str) -> dict:
+    """
+    Uses the configured LLM to convert a text chunk into a structured JSON object
+    containing extracted titles and markdown content.
+    """
+    if not chunk_text or not chunk_text.strip():
+        logger.warning("Received empty chunk_text for structured data generation.")
+        return {
+            "title": None,
+            "chapter": None,
+            "section": None,
+            "header": None,
+            "content_markdown": "",
+        }
+
+    logger.debug("Generating structured data for chunk of length %d.", len(chunk_text))
+
+    try:
+        llm = Settings.llm
+        prompt = STRUCTURED_EXTRACTION_PROMPT.format(chunk_text=chunk_text)
+
+        response = await asyncio.to_thread(llm.complete, prompt)
+
+        response_text = response.text.strip()
+
+        # Parse the JSON response from the LLM
+        structured_data = json.loads(response_text)
+
+        # Ensure all keys are present, even if null, for consistent data structure
+        for key in ["title", "chapter", "section", "header", "content_markdown"]:
+            structured_data.setdefault(key, None)
+
+        logger.debug("Successfully generated and parsed structured data from chunk.")
+        return structured_data
+
+    except Exception:
+        logger.error(
+            "Error generating structured data from LLM. Response was: '%s'",
+            response.text if "response" in locals() else "N/A",
+            exc_info=True,
+        )
+        # Fallback: return a structured object with the original text as content
+        return {
+            "title": None,
+            "chapter": None,
+            "section": None,
+            "header": "Unstructured Content",
+            "content_markdown": chunk_text,
+        }

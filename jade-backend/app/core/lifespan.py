@@ -1,8 +1,8 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from logger import logger
 from startup import initialize_application
-import os
 
 
 @asynccontextmanager
@@ -12,7 +12,7 @@ async def lifespan(app: FastAPI):
     Initializes services on startup and handles cleanup on shutdown.
     """
     logger.info("Application startup sequence initiated.")
-    await initialize_application(app) 
+    await initialize_application(app)
     logger.info("Application startup sequence completed.")
     yield
     logger.info("Application shutdown sequence initiated.")

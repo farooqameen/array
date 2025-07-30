@@ -7,24 +7,25 @@ on the persisted index.
 """
 
 import os
+
+from config.settings import settings
 from llama_index.core import (
     SimpleDirectoryReader,
     StorageContext,
-    load_index_from_storage,
     VectorStoreIndex,
+    get_response_synthesizer,
+    load_index_from_storage,
 )
 from llama_index.core.node_parser import HierarchicalNodeParser
-from llama_index.core.retrievers import AutoMergingRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
-
-from config.settings import settings
 from logger import logger
+
 from .metadata_extractor import (
     RulebookMetadataExtractor,
-    determine_hierarchy_level,
-    generate_search_tags,
     calculate_importance_score,
+    determine_hierarchy_level,
     enhance_node_metadata,
+    generate_search_tags,
 )
 
 
@@ -45,7 +46,7 @@ def build_hierarchical_index(data_dir: str, index_path: str) -> None:
         Exception: If index persistence fails.
     """
     logger.info(
-        f"Starting hierarchical index build from '{data_dir}' to '{index_path}'"
+        "Starting hierarchical index build from '%s' to '%s'", data_dir, index_path
     )
     extractor = RulebookMetadataExtractor()
     documents = []
@@ -56,7 +57,7 @@ def build_hierarchical_index(data_dir: str, index_path: str) -> None:
             try:
                 doc_objs = SimpleDirectoryReader(input_files=[path]).load_data()
                 logger.debug(
-                    f"Loaded {len(doc_objs)} document objects from file: {fname}"
+                    "Loaded %d document objects from file: %s", len(doc_objs), fname
                 )
 
                 for doc in doc_objs:
@@ -100,7 +101,9 @@ def build_hierarchical_index(data_dir: str, index_path: str) -> None:
 
                 documents.extend(doc_objs)
             except Exception as e:
-                logger.error(f"Error processing document {fname}: {e}", exc_info=True)
+                logger.error(
+                    "Error processing document %s: %s", fname, e, exc_info=True
+                )
                 continue
         elif fname.lower().endswith(".pdf"):
             # For non-rulebook PDFs, just load them without metadata extraction
@@ -112,7 +115,9 @@ def build_hierarchical_index(data_dir: str, index_path: str) -> None:
                     doc.metadata = {"filename": fname}
                 documents.extend(doc_objs)
             except Exception as e:
-                logger.error(f"Error processing document {fname}: {e}", exc_info=True)
+                logger.error(
+                    "Error processing document %s: %s", fname, e, exc_info=True
+                )
                 continue
 
     if not documents:
@@ -129,7 +134,7 @@ def build_hierarchical_index(data_dir: str, index_path: str) -> None:
 
     # Convert to hierarchical nodes
     nodes = parser.get_nodes_from_documents(documents)
-    logger.info(f"Generated {len(nodes)} hierarchical nodes from documents.")
+    logger.info("Generated %d hierarchical nodes from documents.", len(nodes))
 
     # Enhance metadata for each node
     for node in nodes:
@@ -140,10 +145,10 @@ def build_hierarchical_index(data_dir: str, index_path: str) -> None:
     try:
         index = VectorStoreIndex(nodes)
         index.storage_context.persist(index_path)
-        logger.info(f"Successfully built hierarchical index with {len(nodes)} nodes")
-        logger.info(f"Index saved to: {index_path}")
+        logger.info("Successfully built hierarchical index with %d nodes", len(nodes))
+        logger.info("Index saved to: %s", index_path)
     except Exception as e:
-        logger.error(f"Failed to persist index to {index_path}: {e}", exc_info=True)
+        logger.error("Failed to persist index to %s: %s", index_path, e, exc_info=True)
         raise
 
 
@@ -162,7 +167,9 @@ def build_traditional_index(data_dir: str, index_path: str) -> None:
     Raises:
         Exception: If index persistence fails.
     """
-    logger.info(f"Building traditional RAG index from '{data_dir}' to '{index_path}'")
+    logger.info(
+        "Building traditional RAG index from '%s' to '%s'", data_dir, index_path
+    )
     documents = []
     for fname in os.listdir(data_dir):
         if fname.lower().endswith(".pdf"):
@@ -171,7 +178,9 @@ def build_traditional_index(data_dir: str, index_path: str) -> None:
                 doc_objs = SimpleDirectoryReader(input_files=[path]).load_data()
                 documents.extend(doc_objs)
             except Exception as e:
-                logger.error(f"Error processing document {fname}: {e}", exc_info=True)
+                logger.error(
+                    "Error processing document %s: %s", fname, e, exc_info=True
+                )
                 continue
 
     if not documents:
@@ -183,14 +192,55 @@ def build_traditional_index(data_dir: str, index_path: str) -> None:
     try:
         index = VectorStoreIndex(nodes)
         index.storage_context.persist(index_path)
-        logger.info(f"Traditional RAG index built and saved to: {index_path}")
+        logger.info("Traditional RAG index built and saved to: %s", index_path)
     except Exception as e:
-        logger.error(f"Failed to persist traditional index: {e}", exc_info=True)
+        logger.error("Failed to persist traditional index: %s", e, exc_info=True)
         raise
 
 
+# class LoggingRetriever:
+#     def __init__(self, retriever):
+#         self.retriever = retriever
 
-def get_hrag_query_engine(index_path: str, top_k: int = 10):
+#     def retrieve(self, query, *args, **kwargs):
+#         results = self.retriever.retrieve(query, *args, **kwargs)
+#         # Log the retrieved context (nodes/chunks)
+#         print(f"Retrieved {len(results)} chunks for query: '{query}'")
+#         logger.info(f"Retrieved context for query '{query}':")
+#         for i, node in enumerate(results):
+#             logger.info(f"Chunk {i+1}: {getattr(node, 'text', str(node))[:10000]}")  # Log first 500 chars
+#         return results
+
+#     def __getattr__(self, name):
+#         # Delegate attribute access to the underlying retriever
+#         return getattr(self.retriever, name)
+
+
+class FilteringRetriever:
+    def __init__(self, retriever):
+        self.retriever = retriever
+
+    def retrieve(self, query, *args, filters=None, **kwargs):
+        results = self.retriever.retrieve(query, *args, **kwargs)
+        if filters:
+            filtered = []
+            for node in results:
+                meta = getattr(node, "metadata", {})
+                keep = False
+                for key, allowed in filters.items():
+                    if str(meta.get(key)) in allowed:
+                        keep = True
+                        break
+                if keep:
+                    filtered.append(node)
+            return filtered
+        return results
+
+    def __getattr__(self, name):
+        return getattr(self.retriever, name)
+
+
+def get_hrag_query_engine(index_path: str, top_k: int = 20):
     """
     Load a query engine from the persisted index storage with auto-merging retrieval.
 
@@ -208,33 +258,43 @@ def get_hrag_query_engine(index_path: str, top_k: int = 10):
     Raises:
         RuntimeError: If the index cannot be loaded successfully.
     """
-    logger.info(f"Attempting to load query engine from storage: {index_path}")
+
+    logger.info("Attempting to load query engine from storage: %s", index_path)
+    try:
+        storage_context = StorageContext.from_defaults(persist_dir=index_path)
+        index = load_index_from_storage(storage_context)
+        retriever = index.as_retriever(similarity_top_k=top_k)
+        filtering_retriever = FilteringRetriever(retriever)
+        response_synthesizer = get_response_synthesizer()
+        query_engine = RetrieverQueryEngine(
+            retriever=filtering_retriever,
+            response_synthesizer=response_synthesizer,
+        )
+        logger.info("HRAG query engine with auto-merging loaded successfully.")
+        return query_engine
+    except Exception as e:
+        logger.error(
+            "Failed to load index from storage at %s: %s", index_path, e, exc_info=True
+        )
+        raise RuntimeError(f"Failed to load query engine: {e}. Ensure index is built.")
+
+
+def get_traditional_query_engine(index_path: str, top_k: int = 20):
+    logger.info("Loading traditional RAG query engine from: %s", index_path)
     try:
         storage_context = StorageContext.from_defaults(persist_dir=index_path)
         index = load_index_from_storage(storage_context)
         retriever = index.as_retriever(similarity_top_k=top_k)
         query_engine = RetrieverQueryEngine.from_args(retriever=retriever)
-        logger.info("HRAG query engine with auto-merging loaded successfully.")
-        return query_engine
-    except Exception as e:
-        logger.error(
-            f"Failed to load index from storage at {index_path}: {e}", exc_info=True
+        logger.info(
+            "Traditional RAG query engine loaded successfully with top_k=%d.", top_k
         )
-        raise RuntimeError(f"Failed to load query engine: {e}. Ensure index is built.")
-
-
-
-def get_traditional_query_engine(index_path: str, top_k: int = 20):
-    logger.info(f"Loading traditional RAG query engine from: {index_path}")
-    try:
-        storage_context = StorageContext.from_defaults(persist_dir=index_path)
-        index = load_index_from_storage(storage_context)
-        retriever = index.as_retriever(similarity_top_k=top_k) 
-        query_engine = RetrieverQueryEngine.from_args(retriever=retriever)
-        logger.info(f"Traditional RAG query engine loaded successfully with top_k={top_k}.")
         return query_engine
     except Exception as e:
         logger.error(
-            f"Failed to load traditional RAG index from {index_path}: {e}", exc_info=True
+            "Failed to load traditional RAG index from %s: %s",
+            index_path,
+            e,
+            exc_info=True,
         )
         raise RuntimeError(f"Failed to load traditional query engine: {e}")

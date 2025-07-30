@@ -1,0 +1,66 @@
+# Exclude virtual environments and Python caches
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+*.so
+.venv/
+venv/
+.venv
+.env
+*.env
+ENV
+env/
+ENV/
+
+# Exclude development and build artifacts
+.git/
+.gitignore
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Exclude OS-specific files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Exclude IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Exclude documentation and non-essential files
+docs/
+*.md
+!README.md
+
+# Exclude test files
+tests/
+*_test.py
+test_*.py
+
+# Exclude development tools
+.devcontainer/
+docker-compose*.yml
+Dockerfile*
+
+# Exclude agent development files (if not needed in main app)
+agent/
+
+# Exclude data directories that shouldn't be packaged
+mvp/
+logs/
+data/
+documents/
+storage/
+llamaindex_hrag_rulebook.egg-info/
+.ruff_cache
+.ruff_cache/

@@ -1,0 +1,173 @@
+image: atlassian/default-image:3
+
+options:
+  max-time: 240
+
+clone:
+  depth: full
+
+definitions:
+  caches:
+    uv:
+      key:
+        files:
+          - pyproject.toml
+      path: ~/.cache/uv
+    # trivy-db:
+    #   path: /root/.cache/trivy/db
+
+
+  services:
+    docker:
+      memory: 7168
+
+  steps:
+    # NOTE: requires `IMAGE_NAME`, `IMAGE_TAG`, `AWS_ROLE_ARN`, `AWS_REGION` to be set
+    - step: &build-and-push-image
+        name: Build, Scan, and Push Image
+        size: 2x
+        max-time: 120 # max timeout set for step
+        oidc: true
+        services:
+          - docker
+        caches:
+          - docker
+        script:
+          - |
+            echo ==================== ECS BUILD ====================
+            echo "INFO | image name  = '$IMAGE_NAME'"
+            echo "INFO | image tag   = '$IMAGE_TAG'"
+            echo "INFO | role arn    = '$AWS_ROLE_ARN'"
+            echo "INFO | aws region  = '$AWS_REGION'"
+            echo
+
+            docker build . -t "$IMAGE_NAME:$IMAGE_TAG" .
+
+          - pipe: aquasecurity/trivy-pipe:1.0.0
+            variables:
+              imageRef: "$IMAGE_NAME:$IMAGE_TAG"
+              format: "table"
+              # exitCode: '1' # Fail the pipeline if vulnerabilities are found
+              ignoreUnfixed: "true"
+              vulnType: "os,library"
+              cacheDir: "/root/.cache/trivy/db"
+
+          - pipe: atlassian/aws-ecr-push-image:2.6.0
+            variables:
+              AWS_DEFAULT_REGION: $AWS_REGION
+              AWS_OIDC_ROLE_ARN: $AWS_ROLE_ARN
+              IMAGE_NAME: "$IMAGE_NAME"
+              TAGS: "$IMAGE_TAG"
+
+    # NOTE: requires `ECS_CLUSTER`, `SERVICE_NAME`, `TASK_FAMILY` and `FULL_IMAGE` to be set
+    - step: &ecs-deploy
+        name: Deploy ECS service
+        image: tstrohmeier/awscli
+        oidc: true
+        max-time: 240 # max timeout set for step
+        script:
+          # OIDC Config
+          - &setup-oidc |
+            export AWS_REGION=me-south-1
+            export AWS_WEB_IDENTITY_TOKEN_FILE=$(pwd)/web-identity-token
+            echo $BITBUCKET_STEP_OIDC_TOKEN > $(pwd)/web-identity-token
+
+          # ECS deployment
+          # Adapted from https://stackoverflow.com/a/76084985
+          - |
+            echo ==================== ECS DEPLOY ====================
+            echo "INFO | cluster           = '$ECS_CLUSTER'"
+            echo "INFO | service           = '$SERVICE_NAME'"
+            echo "INFO | task family       = '$TASK_FAMILY'"
+            echo "INFO | image             = '$FULL_IMAGE'"
+            echo "INFO | deployment config = '$DEPLOYMENT_CONFIGURATION'"
+            echo
+
+            TASK_DEFINITION=$(aws ecs describe-task-definition \
+              --task-definition "$TASK_FAMILY" --region "$AWS_REGION")
+
+            NEW_TASK_DEFINITION=$(echo "$TASK_DEFINITION" |
+              jq --arg IMAGE "image_name" ".taskDefinition |
+                  .containerDefinitions[0].image = \"$FULL_IMAGE\" |
+                  del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) |  del(.registeredAt)  | del(.registeredBy)")
+
+            NEW_TASK_INFO=$(aws ecs register-task-definition \
+              --region "$AWS_REGION" --cli-input-json "$NEW_TASK_DEFINITION")
+            NEW_REVISION=$(echo "$NEW_TASK_INFO" | jq '.taskDefinition.revision')
+
+            aws ecs update-service --cluster "${ECS_CLUSTER}" --service "${SERVICE_NAME}" \
+              --task-definition "${TASK_FAMILY}:${NEW_REVISION}" --region "$AWS_REGION" \
+              --deployment-configuration "${DEPLOYMENT_CONFIGURATION:-minimumHealthyPercent=100}"
+
+          # Fail bitbucket deployment if ecs deployment doesn't stabilize
+          - |
+            # this JMESPATH adapted from first-party implemenation see `aws ecs wait services-stable help`
+            JMESPATH='length(services[?!(length(deployments) == `1` && runningCount == desiredCount)])'
+            POLL_DELAY=15
+            MAX_ATTEMPTS=30
+
+            for (( attempt=1; attempt<=MAX_ATTEMPTS; attempt++ )); do
+              result=$(aws ecs describe-services \
+                --cluster "$ECS_CLUSTER" \
+                --services "$SERVICE_NAME" \
+                --query "$JMESPATH" \
+                --region "$AWS_REGION" \
+                --output text)
+
+              if [[ "$result" == "0" ]]; then
+                echo "✅ Service '$SERVICE_NAME' is stable (Attempt $attempt)."
+                exit 0
+              else
+                echo "⏳ Waiting for service '$SERVICE_NAME' to stabilize... (Attempt $attempt/$MAX_ATTEMPTS)"
+                sleep "$POLL_DELAY"
+              fi
+            done
+
+            echo "❌ Timeout: Service '$SERVICE_NAME' did not stabilize after $MAX_ATTEMPTS attempts."
+            exit -1
+
+pipelines:
+  branches:
+    main:
+      - stage:
+          name: Deploy to Production
+          deployment: production
+          steps:
+            - step:
+                name: Set variables
+                script:
+                  - |
+                    (
+                      echo "AWS_ROLE_ARN=arn:aws:iam::992382618779:role/Bitbucket"
+                      echo AWS_REGION=me-south-1
+
+                      echo ECS_CLUSTER=jade-dev-cluster
+                      echo SERVICE_NAME=jade-dev-backend
+                      echo TASK_FAMILY=jade-dev-backend
+
+                      IMAGE_NAME="array-dev/jade"
+                      IMAGE_TAG="dev-$BITBUCKET_BUILD_NUMBER-commit-$BITBUCKET_COMMIT"
+                      FULL_IMAGE="992382618779.dkr.ecr.me-south-1.amazonaws.com/${IMAGE_NAME}:${IMAGE_TAG}"
+
+                      echo "IMAGE_NAME=$IMAGE_NAME"
+                      echo "IMAGE_TAG=$IMAGE_TAG"
+                      echo "FULL_IMAGE=$FULL_IMAGE"
+
+                      echo "DEPLOYMENT_CONFIGURATION=minimumHealthyPercent=0"
+                    ) >> $BITBUCKET_PIPELINES_VARIABLES_PATH
+                output-variables:
+                  - AWS_ROLE_ARN
+                  - AWS_REGION
+                  - ECS_CLUSTER
+                  - SERVICE_NAME
+                  - TASK_FAMILY
+                  - IMAGE_NAME
+                  - IMAGE_TAG
+                  - FULL_IMAGE
+                  - DEPLOYMENT_CONFIGURATION
+
+            - step:
+                <<: *build-and-push-image
+
+            - step:
+                <<: *ecs-deploy
